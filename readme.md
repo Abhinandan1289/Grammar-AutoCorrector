@@ -9,11 +9,10 @@ GrammaCore is an explainable grammar auto-correction web application powered by 
 
 ```
 .
+|-----index.html          # Single-page UI (Live Corrector, How It Works, Results)
 ├── grammacore_backend.py   # FastAPI backend serving API & UI at "/"
 ├── evaluate.py             # Evaluation script for JFLEG benchmark (P, R, F0.5)
 ├── test_grammacore.py      # Automated test suite (pytest)
-├── static/
-│   └── index.html          # Single-page UI (Live Corrector, How It Works, Results)
 ├── results.json            # Real JFLEG evaluation metrics (threshold 0.80)
 ├── results_t060.json       # Real JFLEG evaluation metrics (threshold 0.60)
 ├── requirements.txt        # Frozen dependencies
@@ -29,7 +28,7 @@ GrammaCore is an explainable grammar auto-correction web application powered by 
    - Heuristically categorises edits into `grammar`, `spelling`, `punctuation`, `word_choice`, `redundancy`, and `style`.
    - Exposes `/health`, `/api/v1/analyze`, `/results.json`, `/results_t060.json`, and serves `/` with `static/index.html`.
 
-2. **`static/index.html`**:
+2. **`index.html`**:
    - Single-page frontend using relative API paths (`/health`, `/api/v1/analyze`, `/results.json`, `/results_t060.json`).
    - Dynamic sample sentence buttons count (10 sample buttons).
    - Interactive diff viewer highlighting insertions (green) and deletions (red).
