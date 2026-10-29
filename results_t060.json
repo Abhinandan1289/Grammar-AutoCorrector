@@ -1,0 +1,78 @@
+{
+  "dataset": "JFLEG (jhu-clsp/jfleg)",
+  "model": "vennify/t5-base-grammar-correction",
+  "num_samples": 200,
+  "threshold": 0.6,
+  "date": "2026-10-30 00:25",
+  "baseline": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "f05": 0.0,
+    "tp": 0,
+    "fp": 0,
+    "fn": 604,
+    "ms_per_sentence": 0
+  },
+  "plain_t5": {
+    "precision": 0.3376,
+    "recall": 0.3526,
+    "f05": 0.3405,
+    "tp": 213,
+    "fp": 418,
+    "fn": 391,
+    "ms_per_sentence": 1068.5
+  },
+  "grammacore": {
+    "precision": 0.3413,
+    "recall": 0.3295,
+    "f05": 0.3389,
+    "tp": 199,
+    "fp": 384,
+    "fn": 405,
+    "ms_per_sentence": 1068.5
+  },
+  "failure_cases": [
+    {
+      "type": "Incomplete progressive tense correction",
+      "input": "What I am telling is correct but what you telling me is not correct direclty.",
+      "output": "What I am telling is correct, but what you tell me is not correct.",
+      "expected": "What I am telling is correct, but what you are telling me is not correct directly.",
+      "note": "Model simplified 'what you telling' to 'what you tell' (simple present) instead of supplying the auxiliary 'are telling' to preserve progressive aspect."
+    },
+    {
+      "type": "Missed repetition and redundant article",
+      "input": "New and new technology has been introduced to the society .",
+      "output": "New and new technology has been introduced to the society.",
+      "expected": "New technology has been introduced to society.",
+      "note": "Model failed to remove the duplicated adjective 'and new' and kept the incorrect generic article 'the society'."
+    },
+    {
+      "type": "Uncorrected mass noun plurals",
+      "input": "Every person needs to know a bit about math , sciences , arts , literature and history in order to stand out in society .",
+      "output": "Every person needs to know a bit about math, sciences, arts, literature and history in order to stand out in society.",
+      "expected": "Every person needs to know a bit about math, science, art, literature and history in order to stand out in society.",
+      "note": "Model left pluralized academic discipline names 'sciences' and 'arts' unchanged instead of converting to standard non-count forms 'science' and 'art'."
+    },
+    {
+      "type": "Suboptimal determiner and agreement",
+      "input": "Disadvantage is parking their car is very difficult .",
+      "output": "The disadvantage is that parking their car is very difficult.",
+      "expected": "A disadvantage is that parking their cars is very difficult.",
+      "note": "Model used definite article 'The disadvantage' where indefinite 'A disadvantage' or 'One disadvantage' was appropriate, and left singular 'car' unpluralized."
+    },
+    {
+      "type": "Superfluous definite articles retained",
+      "input": "One possible outcome is that an environmentally-induced reduction in motorization levels in the richer countries will outweigh any rise in motorization levels in the poorer countries .",
+      "output": "One possible outcome is that an environmentally-induced reduction in motorization levels in the richer countries will outweigh any rise in motorization levels in the poorer countries.",
+      "expected": "One possible outcome is that an environmentally-induced reduction in motorization levels in richer countries will outweigh any rise in motorization levels in poorer countries.",
+      "note": "Model retained 'the richer countries' and 'the poorer countries' where general plural reference without the article is idiomatic."
+    },
+    {
+      "type": "Missed verb complementation",
+      "input": "While the travel company will most likely show them some interesting sites ... that the company will tell about the sites",
+      "output": "While the travel company will most likely show them some interesting sites ... that the company will tell about the sites",
+      "expected": "While the travel company will most likely show them some interesting sites ... that the company will tell them about the sites / talk about the sites",
+      "note": "Model accepted intransitive use of 'tell about' without a required indirect object ('tell them about') or replacement with 'talk about'."
+    }
+  ]
+}

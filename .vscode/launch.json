@@ -1,0 +1,48 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run GrammaCore Server (Port 8001)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "grammacore_backend:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8001",
+                "--reload"
+            ],
+            "jinja": true,
+            "justMyCode": true,
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run Unit Tests (pytest)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "test_grammacore.py",
+                "-v"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run Evaluation (JFLEG limit 200)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/evaluate.py",
+            "args": [
+                "--limit",
+                "200",
+                "--threshold",
+                "0.80",
+                "--output",
+                "results.json"
+            ],
+            "console": "integratedTerminal"
+        }
+    ]
+}

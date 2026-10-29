@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GrammaCore — Explainable Grammar AutoCorrector</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-light: #818cf8;
+            --primary-dark: #3730a3;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --radius: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 24px 0;
+            text-align: center;
+        }
+        header h1 { font-size: 2rem; font-weight: 700; }
+        header p { opacity: 0.9; font-size: 0.95rem; margin-top: 4px; }
+
+        /* Status bar */
+        #status-bar {
+            padding: 10px 20px;
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        .status-loading { background: #fef3c7; color: #92400e; }
+        .status-ready { background: #d1fae5; color: #065f46; }
+        .status-error { background: #fee2e2; color: #991b1b; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--border);
+            margin-top: 20px;
+        }
+        .tab-btn {
+            padding: 12px 24px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover { color: var(--primary); }
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        .tab-panel { display: none; padding: 24px 0; }
+        .tab-panel.active { display: block; }
+
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .card h3 { margin-bottom: 12px; color: var(--primary-dark); }
+
+        /* Input area */
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 14px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        textarea:focus { outline: none; border-color: var(--primary); }
+
+        .char-count { text-align: right; font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+        /* Controls row */
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin: 14px 0;
+            flex-wrap: wrap;
+        }
+        .controls label { font-size: 0.9rem; font-weight: 500; }
+        .controls input[type="range"] { width: 140px; }
+        .threshold-val { font-weight: 700; color: var(--primary); }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+        .btn-secondary { background: var(--border); color: var(--text); }
+        .btn-secondary:hover { background: #cbd5e1; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; font-size: 0.85rem; padding: 6px 14px; }
+
+        /* Sample sentences */
+        .samples-header { font-size: 0.95rem; font-weight: 600; margin-bottom: 8px; }
+        .sample-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+        .sample-btn {
+            padding: 6px 12px;
+            background: #eef2ff;
+            border: 1px solid #c7d2fe;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .sample-btn:hover { background: #c7d2fe; }
+
+        /* Diff view */
+        .diff-view {
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.95rem;
+            line-height: 1.8;
+            padding: 16px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .diff-del {
+            background: #fecaca;
+            color: #991b1b;
+            text-decoration: line-through;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .diff-ins {
+            background: #bbf7d0;
+            color: #065f46;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        /* Edit cards */
+        .edit-card {
+            background: #fafbff;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        .edit-card.suggestion {
+            border-left: 4px solid var(--warning);
+        }
+        .edit-card.applied {
+            border-left: 4px solid var(--success);
+        }
+        .edit-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .edit-category {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 3px 10px;
+            border-radius: 12px;
+        }
+        .cat-grammar { background: #dbeafe; color: #1e40af; }
+        .cat-spelling { background: #fce7f3; color: #9d174d; }
+        .cat-punctuation { background: #f3e8ff; color: #6b21a8; }
+        .cat-style { background: #e0e7ff; color: #3730a3; }
+        .cat-redundancy { background: #fef3c7; color: #92400e; }
+        .cat-word_choice { background: #ccfbf1; color: #115e59; }
+        .edit-confidence {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .conf-high { color: var(--success); }
+        .conf-med { color: var(--warning); }
+        .conf-low { color: var(--danger); }
+        .edit-change {
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+        }
+        .edit-explanation {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+        .edit-alternatives {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid var(--border);
+        }
+        .edit-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .edit-actions button {
+            padding: 4px 12px;
+            font-size: 0.8rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            background: white;
+        }
+        .edit-actions .accept-btn { color: var(--success); border-color: var(--success); }
+        .edit-actions .accept-btn:hover { background: #d1fae5; }
+        .edit-actions .reject-btn { color: var(--danger); border-color: var(--danger); }
+        .edit-actions .reject-btn:hover { background: #fee2e2; }
+
+        /* Stats bar */
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin: 16px 0;
+        }
+        .stat-item {
+            font-size: 0.85rem;
+        }
+        .stat-item strong { color: var(--primary); }
+
+        /* Chart */
+        .chart-container {
+            margin: 16px 0;
+        }
+        .chart-bar-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .chart-label {
+            width: 110px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            text-align: right;
+            padding-right: 10px;
+        }
+        .chart-bar {
+            height: 24px;
+            border-radius: 4px;
+            min-width: 2px;
+            transition: width 0.4s;
+            display: flex;
+            align-items: center;
+            padding-left: 8px;
+            font-size: 0.75rem;
+            color: white;
+            font-weight: 600;
+        }
+
+        /* Final text */
+        .final-text {
+            padding: 16px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+
+        /* Results table */
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+        .results-table th, .results-table td {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+        .results-table th {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+        .results-table tr:nth-child(even) { background: #f8fafc; }
+        .results-table tr:hover { background: #eef2ff; }
+
+        /* How It Works */
+        .pipeline-step {
+            display: flex;
+            gap: 14px;
+            margin-bottom: 14px;
+            align-items: flex-start;
+        }
+        .step-num {
+            background: var(--primary);
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+        .step-text h4 { font-size: 0.95rem; }
+        .step-text p { font-size: 0.85rem; color: var(--text-muted); }
+
+        /* Error overlay */
+        .error-overlay {
+            display: none;
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            text-align: center;
+        }
+        .error-overlay.visible { display: block; }
+        .error-overlay p { color: #991b1b; margin-bottom: 10px; }
+
+        /* Loading spinner */
+        .spinner {
+            display: none;
+            text-align: center;
+            padding: 30px;
+        }
+        .spinner.visible { display: block; }
+        .spinner-circle {
+            width: 40px; height: 40px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Failure cases */
+        .failure-case {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .failure-case .fc-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #9a3412;
+            text-transform: uppercase;
+        }
+        .failure-case .fc-input { font-size: 0.9rem; margin: 4px 0; }
+        .failure-case .fc-output { font-size: 0.9rem; color: var(--text-muted); }
+
+        /* Limitations list */
+        .limitations-list {
+            list-style: disc;
+            padding-left: 20px;
+        }
+        .limitations-list li {
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            border-top: 1px solid var(--border);
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="container">
+        <h1>🔍 GrammaCore</h1>
+        <p>Explainable Grammar AutoCorrector — NLP Course Project</p>
+    </div>
+</header>
+
+<div id="status-bar" class="status-loading">
+    ⏳ Model loading… Please wait.
+</div>
+
+<div class="container">
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="corrector">1. Live Corrector</button>
+        <button class="tab-btn" data-tab="how-it-works">2. How It Works</button>
+        <button class="tab-btn" data-tab="results">3. Results &amp; Analysis</button>
+    </div>
+
+    <!-- ============ TAB 1: LIVE CORRECTOR ============ -->
+    <div id="tab-corrector" class="tab-panel active">
+        <!-- Sample sentences -->
+        <div class="card">
+            <div class="samples-header" id="samples-label">Sample test sentences</div>
+            <div class="sample-btns" id="sample-btns">
+                <button class="sample-btn" data-text="She go to school every day and learn many thing.">Grammar errors</button>
+                <button class="sample-btn" data-text="The recieve of the package was delayed becuase of wether conditions.">Spelling errors</button>
+                <button class="sample-btn" data-text="I dont think that this is right we should reconsider our approach.">Missing punctuation</button>
+                <button class="sample-btn" data-text="What I am telling is correct but what you telling me is not correct direclty.">Mixed errors</button>
+                <button class="sample-btn" data-text="He don't knows nothing about the the situation at all.">Redundancy</button>
+                <button class="sample-btn" data-text="The equation $E = mc^2$ is very famouse and well known.">LaTeX preserved</button>
+                <button class="sample-btn" data-text="Visit https://example.com/page for more informations about this.">URL preserved</button>
+                <button class="sample-btn" data-text="Use the `print()` function to display the ouput on screen.">Code preserved</button>
+                <button class="sample-btn" data-text="The $\alpha$ value at https://arxiv.org/paper and `x = 1` is importent.">All masks combined</button>
+                <button class="sample-btn" data-text="This sentence is already correct and needs no changes.">No errors</button>
+            </div>
+        </div>
+
+        <!-- Text input -->
+        <div class="card">
+            <h3>Enter text to correct</h3>
+            <textarea id="input-text" placeholder="Type or paste text with grammar errors…" maxlength="2000"></textarea>
+            <div class="char-count"><span id="char-count">0</span> / 2000</div>
+
+            <div class="controls">
+                <label>Confidence Threshold:
+                    <input type="range" id="threshold" min="0" max="100" value="80">
+                    <span class="threshold-val" id="threshold-val">0.80</span>
+                </label>
+                <button class="btn btn-primary" id="correct-btn" disabled>✨ Correct</button>
+                <button class="btn btn-secondary" id="clear-btn">Clear</button>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div class="spinner" id="loading">
+            <div class="spinner-circle"></div>
+            <p>Analyzing grammar…</p>
+        </div>
+
+        <!-- Error -->
+        <div class="error-overlay" id="error-overlay">
+            <p id="error-message">An error occurred.</p>
+            <button class="btn btn-danger" id="retry-btn">🔄 Retry</button>
+        </div>
+
+        <!-- Results section (hidden until analysis) -->
+        <div id="results-section" style="display:none;">
+            <!-- Stats -->
+            <div class="stats-bar" id="stats-bar"></div>
+
+            <!-- Diff view -->
+            <div class="card">
+                <h3>Diff View</h3>
+                <div class="diff-view" id="diff-view"></div>
+            </div>
+
+            <!-- Edit details -->
+            <div class="card">
+                <h3>Edit Details</h3>
+                <div id="edits-list"></div>
+            </div>
+
+            <!-- Category chart -->
+            <div class="card">
+                <h3>Edit Categories</h3>
+                <div class="chart-container" id="category-chart"></div>
+            </div>
+
+            <!-- Final text -->
+            <div class="card">
+                <h3>Final Corrected Text</h3>
+                <div class="final-text" id="final-text"></div>
+                <div style="margin-top: 10px;">
+                    <button class="btn btn-success" id="copy-btn">📋 Copy Final Text</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ TAB 2: HOW IT WORKS ============ -->
+    <div id="tab-how-it-works" class="tab-panel">
+        <div class="card">
+            <h3>GrammaCore Pipeline</h3>
+            <div class="pipeline-step">
+                <div class="step-num">1</div>
+                <div class="step-text">
+                    <h4>Input Validation &amp; Span Masking</h4>
+                    <p>Text is validated (max 2,000 characters). Protected spans — LaTeX (<code>$…$</code>), inline code (<code>`…`</code>), and URLs — are replaced with numbered placeholders so the model cannot alter them.</p>
+                </div>
+            </div>
+            <div class="pipeline-step">
+                <div class="step-num">2</div>
+                <div class="step-text">
+                    <h4>T5-Base Grammar Correction</h4>
+                    <p>The masked text is prefixed with <code>"grammar: "</code> and fed to the <strong>vennify/t5-base-grammar-correction</strong> model via beam search (5 beams, 3 candidates). The model outputs corrected text along with per-token log-probabilities.</p>
+                </div>
+            </div>
+            <div class="pipeline-step">
+                <div class="step-num">3</div>
+                <div class="step-text">
+                    <h4>Span Unmasking</h4>
+                    <p>Placeholders are restored to their original content, ensuring LaTeX math, inline code, and URLs come through byte-for-byte unchanged.</p>
+                </div>
+            </div>
+            <div class="pipeline-step">
+                <div class="step-num">4</div>
+                <div class="step-text">
+                    <h4>Edit Detection &amp; Alignment</h4>
+                    <p>Word-level alignment (via SequenceMatcher) between the original and corrected text identifies individual edits (insertions, deletions, replacements).</p>
+                </div>
+            </div>
+            <div class="pipeline-step">
+                <div class="step-num">5</div>
+                <div class="step-text">
+                    <h4>Per-Edit Confidence Scoring</h4>
+                    <p>Each edit gets a <em>different</em> confidence score derived from the mean token probability (via <code>compute_transition_scores</code>) of the generated tokens covering that span. This is NOT the sentence-level score — each edit has its own value.</p>
+                </div>
+            </div>
+            <div class="pipeline-step">
+                <div class="step-num">6</div>
+                <div class="step-text">
+                    <h4>Categorisation &amp; Explanation</h4>
+                    <p>Each edit is categorised (grammar, spelling, punctuation, style, redundancy, word choice) using heuristic rules. A misspelled word (not in spaCy vocabulary, edit distance ≤ 2) is labelled <em>spelling</em>. Punctuation-only changes are labelled <em>punctuation</em>. Explanations quote the actual words involved.</p>
+                </div>
+            </div>
+            <div class="pipeline-step">
+                <div class="step-num">7</div>
+                <div class="step-text">
+                    <h4>Threshold &amp; Suggestions</h4>
+                    <p>Edits with confidence below the user-set threshold are returned as "suggestions" (shown but not auto-applied). The user can accept or reject each edit individually.</p>
+                </div>
+            </div>
+            <div class="pipeline-step">
+                <div class="step-num">8</div>
+                <div class="step-text">
+                    <h4>Alternative Candidates</h4>
+                    <p>Other beam candidates are checked for genuinely different corrections for each span. Only real, distinct alternatives are shown — no filler options.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Categories</h3>
+            <table class="results-table">
+                <thead>
+                    <tr><th>Category</th><th>Description</th><th>Example</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><span class="edit-category cat-grammar">Grammar</span></td><td>Verb form, article, preposition, agreement</td><td>"She go" → "She goes"</td></tr>
+                    <tr><td><span class="edit-category cat-spelling">Spelling</span></td><td>Misspelled word (not in vocabulary, edit distance ≤ 2)</td><td>"direclty" → "directly"</td></tr>
+                    <tr><td><span class="edit-category cat-punctuation">Punctuation</span></td><td>Insert, delete, or change punctuation marks</td><td>Missing comma added</td></tr>
+                    <tr><td><span class="edit-category cat-word_choice">Word Choice</span></td><td>Valid word replaced with a better alternative</td><td>"informations" → "information"</td></tr>
+                    <tr><td><span class="edit-category cat-redundancy">Redundancy</span></td><td>Real word removed because meaning is repeated</td><td>"the the" → "the"</td></tr>
+                    <tr><td><span class="edit-category cat-style">Style</span></td><td>Rewording for clarity without changing meaning</td><td>Sentence restructuring</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Model Details</h3>
+            <ul style="padding-left: 18px; font-size: 0.9rem; color: var(--text-muted);">
+                <li><strong>Model:</strong> vennify/t5-base-grammar-correction (HuggingFace)</li>
+                <li><strong>Architecture:</strong> T5-base (220M parameters), encoder-decoder transformer</li>
+                <li><strong>Input prefix:</strong> <code>"grammar: "</code></li>
+                <li><strong>Inference:</strong> CPU only, beam search with 5 beams</li>
+                <li><strong>Vocabulary check:</strong> spaCy en_core_web_sm</li>
+                <li><strong>Evaluation dataset:</strong> JFLEG (jhu-clsp/jfleg)</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- ============ TAB 3: RESULTS & ANALYSIS ============ -->
+    <div id="tab-results" class="tab-panel">
+        <div class="card">
+            <h3>Evaluation Results</h3>
+            <div id="results-loading" class="spinner visible">
+                <div class="spinner-circle"></div>
+                <p>Loading evaluation results…</p>
+            </div>
+            <div id="results-content" style="display: none;">
+                <div id="results-meta" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;"></div>
+                <table class="results-table" id="eval-table">
+                    <thead>
+                        <tr>
+                            <th>System</th>
+                            <th>Threshold</th>
+                            <th>Precision</th>
+                            <th>Recall</th>
+                            <th>F0.5</th>
+                            <th>ms/sentence</th>
+                        </tr>
+                    </thead>
+                    <tbody id="eval-tbody"></tbody>
+                </table>
+            </div>
+            <div id="results-error" style="display: none; color: #991b1b; padding: 12px;">
+                Evaluation results not available. Run <code>python3 evaluate.py --limit 200 --threshold 0.80 --output results.json</code> first.
+            </div>
+        </div>
+
+        <div class="card" id="analysis-card" style="display: none;">
+            <h3>Analysis</h3>
+            <div id="analysis-text" style="font-size: 0.9rem; line-height: 1.7;"></div>
+        </div>
+
+        <div class="card" id="failures-card" style="display: none;">
+            <h3>Failure Cases</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+                Real failure cases found by running GrammaCore on JFLEG sentences:
+            </p>
+            <div id="failures-list"></div>
+        </div>
+
+        <div class="card" id="limitations-card" style="display: none;">
+            <h3>Limitations</h3>
+            <ul class="limitations-list" id="limitations-list"></ul>
+        </div>
+    </div>
+</div>
+
+<footer>
+    <p>GrammaCore — NLP Course Project | Model: vennify/t5-base-grammar-correction | Built with FastAPI + T5</p>
+</footer>
+
+<script>
+(function() {
+    'use strict';
+
+    // ==================== STATE ====================
+    let modelReady = false;
+    let lastResponse = null;
+    let editStates = [];  // track accept/reject per edit
+
+    // ==================== DOM REFS ====================
+    const statusBar = document.getElementById('status-bar');
+    const inputText = document.getElementById('input-text');
+    const charCount = document.getElementById('char-count');
+    const threshold = document.getElementById('threshold');
+    const thresholdVal = document.getElementById('threshold-val');
+    const correctBtn = document.getElementById('correct-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const loading = document.getElementById('loading');
+    const errorOverlay = document.getElementById('error-overlay');
+    const errorMessage = document.getElementById('error-message');
+    const retryBtn = document.getElementById('retry-btn');
+    const resultsSection = document.getElementById('results-section');
+    const diffView = document.getElementById('diff-view');
+    const editsList = document.getElementById('edits-list');
+    const categoryChart = document.getElementById('category-chart');
+    const finalText = document.getElementById('final-text');
+    const copyBtn = document.getElementById('copy-btn');
+    const statsBar = document.getElementById('stats-bar');
+
+    // ==================== DYNAMIC SAMPLE LABEL ====================
+    const sampleBtns = document.querySelectorAll('.sample-btn');
+    const samplesLabel = document.getElementById('samples-label');
+    samplesLabel.textContent = `${sampleBtns.length} sample test sentences`;
+
+    // ==================== TABS ====================
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+            if (btn.dataset.tab === 'results') loadResults();
+        });
+    });
+
+    // ==================== HEALTH POLLING ====================
+    async function checkHealth() {
+        try {
+            const resp = await fetch('/health');
+            if (!resp.ok) throw new Error('Health check failed');
+            const data = await resp.json();
+            if (data.model_loaded) {
+                modelReady = true;
+                statusBar.className = 'status-ready';
+                statusBar.textContent = '✅ Model loaded and ready!';
+                correctBtn.disabled = false;
+                return;
+            }
+        } catch (e) {
+            // still loading or server not up
+        }
+        setTimeout(checkHealth, 2000);
+    }
+    checkHealth();
+
+    // ==================== CHAR COUNT ====================
+    inputText.addEventListener('input', () => {
+        charCount.textContent = inputText.value.length;
+    });
+
+    // ==================== THRESHOLD ====================
+    threshold.addEventListener('input', () => {
+        thresholdVal.textContent = (threshold.value / 100).toFixed(2);
+    });
+
+    // ==================== SAMPLE BUTTONS ====================
+    sampleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            inputText.value = btn.dataset.text;
+            charCount.textContent = inputText.value.length;
+        });
+    });
+
+    // ==================== CORRECT ====================
+    correctBtn.addEventListener('click', runCorrection);
+
+    async function runCorrection() {
+        const text = inputText.value.trim();
+        if (!text) return;
+        if (text.length > 2000) {
+            showError('Text exceeds 2,000 character limit.');
+            return;
+        }
+
+        hideError();
+        resultsSection.style.display = 'none';
+        loading.classList.add('visible');
+        correctBtn.disabled = true;
+
+        try {
+            const resp = await fetch('/api/v1/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: text,
+                    confidence_threshold: threshold.value / 100,
+                    num_beams: 5
+                })
+            });
+
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.detail || `Server error (${resp.status})`);
+            }
+
+            lastResponse = await resp.json();
+            editStates = lastResponse.edits.map(() => 'pending');  // pending, accepted, rejected
+            renderResults();
+        } catch (e) {
+            showError(e.message || 'Network error. Is the server running?');
+        } finally {
+            loading.classList.remove('visible');
+            correctBtn.disabled = !modelReady;
+        }
+    }
+
+    // ==================== RETRY ====================
+    retryBtn.addEventListener('click', () => {
+        hideError();
+        if (inputText.value.trim()) runCorrection();
+    });
+
+    // ==================== CLEAR ====================
+    clearBtn.addEventListener('click', () => {
+        inputText.value = '';
+        charCount.textContent = '0';
+        resultsSection.style.display = 'none';
+        lastResponse = null;
+        hideError();
+    });
+
+    // ==================== ERROR HANDLING ====================
+    function showError(msg) {
+        errorMessage.textContent = msg;
+        errorOverlay.classList.add('visible');
+    }
+    function hideError() {
+        errorOverlay.classList.remove('visible');
+    }
+
+    // ==================== RENDER RESULTS ====================
+    function renderResults() {
+        if (!lastResponse) return;
+        resultsSection.style.display = 'block';
+
+        // Stats
+        statsBar.innerHTML = `
+            <div class="stat-item">📝 Edits: <strong>${lastResponse.edits.length}</strong></div>
+            <div class="stat-item">🎯 Overall: <strong>${lastResponse.overall_confidence}%</strong></div>
+            <div class="stat-item">⏱️ Time: <strong>${lastResponse.processing_time_ms} ms</strong></div>
+        `;
+
+        renderDiff();
+        renderEdits();
+        renderChart();
+        updateFinalText();
+    }
+
+    // ==================== DIFF VIEW ====================
+    function renderDiff() {
+        const orig = lastResponse.original_text;
+        const corr = lastResponse.corrected_text;
+        const origWords = orig.split(/(\s+)/);
+        const corrWords = corr.split(/(\s+)/);
+
+        let html = '';
+        const ops = diffWords(origWords, corrWords);
+        for (const [op, oText, cText] of ops) {
+            if (op === 'equal') {
+                html += escapeHtml(oText);
+            } else if (op === 'delete') {
+                html += `<span class="diff-del">${escapeHtml(oText)}</span>`;
+            } else if (op === 'insert') {
+                html += `<span class="diff-ins">${escapeHtml(cText)}</span>`;
+            } else if (op === 'replace') {
+                html += `<span class="diff-del">${escapeHtml(oText)}</span>`;
+                html += `<span class="diff-ins">${escapeHtml(cText)}</span>`;
+            }
+        }
+        diffView.innerHTML = html;
+    }
+
+    function diffWords(a, b) {
+        // Simple word-level diff using LCS
+        const result = [];
+        let ai = 0, bi = 0;
+        const aFiltered = a.filter(w => w.trim());
+        const bFiltered = b.filter(w => w.trim());
+
+        const sm = simpleDiff(aFiltered, bFiltered);
+        for (const [op, aSlice, bSlice] of sm) {
+            if (op === 'equal') {
+                result.push(['equal', aSlice.join(' '), bSlice.join(' ')]);
+            } else if (op === 'delete') {
+                result.push(['delete', aSlice.join(' '), '']);
+            } else if (op === 'insert') {
+                result.push(['insert', '', bSlice.join(' ')]);
+            } else {
+                result.push(['replace', aSlice.join(' '), bSlice.join(' ')]);
+            }
+            // Add space between ops
+            result.push(['equal', ' ', ' ']);
+        }
+        return result;
+    }
+
+    function simpleDiff(a, b) {
+        // Use a simple SequenceMatcher-like approach
+        const ops = [];
+        const m = a.length, n = b.length;
+
+        // Build LCS table
+        const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+        for (let i = 1; i <= m; i++) {
+            for (let j = 1; j <= n; j++) {
+                if (a[i-1] === b[j-1]) dp[i][j] = dp[i-1][j-1] + 1;
+                else dp[i][j] = Math.max(dp[i-1][j], dp[i][j-1]);
+            }
+        }
+
+        // Backtrack
+        let i = m, j = n;
+        const result = [];
+        while (i > 0 || j > 0) {
+            if (i > 0 && j > 0 && a[i-1] === b[j-1]) {
+                result.unshift(['equal', [a[i-1]], [b[j-1]]]);
+                i--; j--;
+            } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
+                result.unshift(['insert', [], [b[j-1]]]);
+                j--;
+            } else {
+                result.unshift(['delete', [a[i-1]], []]);
+                i--;
+            }
+        }
+
+        // Merge consecutive same-type ops
+        const merged = [];
+        for (const [op, aW, bW] of result) {
+            if (merged.length > 0 && merged[merged.length-1][0] === op) {
+                merged[merged.length-1][1].push(...aW);
+                merged[merged.length-1][2].push(...bW);
+            } else {
+                merged.push([op, [...aW], [...bW]]);
+            }
+        }
+
+        // Convert adjacent delete+insert to replace
+        const final = [];
+        for (let k = 0; k < merged.length; k++) {
+            if (merged[k][0] === 'delete' && k+1 < merged.length && merged[k+1][0] === 'insert') {
+                final.push(['replace', merged[k][1], merged[k+1][2]]);
+                k++;
+            } else {
+                final.push(merged[k]);
+            }
+        }
+
+        return final;
+    }
+
+    // ==================== EDIT CARDS ====================
+    function renderEdits() {
+        if (!lastResponse.edits.length) {
+            editsList.innerHTML = '<p style="color: var(--text-muted); font-style: italic;">No edits needed — the text looks correct!</p>';
+            return;
+        }
+
+        editsList.innerHTML = lastResponse.edits.map((edit, idx) => {
+            const confClass = edit.confidence >= 80 ? 'conf-high' : edit.confidence >= 50 ? 'conf-med' : 'conf-low';
+            const cardClass = edit.is_suggestion ? 'suggestion' : 'applied';
+            const stateClass = editStates[idx] === 'accepted' ? 'applied' : editStates[idx] === 'rejected' ? '' : cardClass;
+
+            let changeHtml = '';
+            if (edit.original && edit.corrected) {
+                changeHtml = `<span class="diff-del">${escapeHtml(edit.original)}</span> → <span class="diff-ins">${escapeHtml(edit.corrected)}</span>`;
+            } else if (!edit.original) {
+                changeHtml = `Insert: <span class="diff-ins">${escapeHtml(edit.corrected)}</span>`;
+            } else {
+                changeHtml = `Remove: <span class="diff-del">${escapeHtml(edit.original)}</span>`;
+            }
+
+            let altHtml = '';
+            if (edit.alternatives && edit.alternatives.length > 0) {
+                altHtml = `<div class="edit-alternatives">💡 Alternatives: ${edit.alternatives.map(a => `<em>${escapeHtml(a)}</em>`).join(', ')}</div>`;
+            }
+
+            const stateLabel = editStates[idx] === 'accepted' ? ' ✅ Accepted' :
+                               editStates[idx] === 'rejected' ? ' ❌ Rejected' : '';
+
+            return `
+                <div class="edit-card ${stateClass}" id="edit-${idx}">
+                    <div class="edit-header">
+                        <span class="edit-category cat-${edit.category}">${edit.category}</span>
+                        <span class="edit-confidence ${confClass}">${edit.confidence}% confidence${stateLabel}</span>
+                    </div>
+                    <div class="edit-change">${changeHtml}</div>
+                    <div class="edit-explanation">${escapeHtml(edit.explanation)}</div>
+                    ${altHtml}
+                    ${edit.is_suggestion ? '<div style="font-size: 0.8rem; color: var(--warning); margin-top: 4px;">⚠️ Below threshold — shown as suggestion</div>' : ''}
+                    <div class="edit-actions">
+                        <button class="accept-btn" onclick="window._acceptEdit(${idx})">✓ Accept</button>
+                        <button class="reject-btn" onclick="window._rejectEdit(${idx})">✗ Reject</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Accept/Reject handlers (exposed globally for onclick)
+    window._acceptEdit = function(idx) {
+        editStates[idx] = 'accepted';
+        renderEdits();
+        updateFinalText();
+    };
+    window._rejectEdit = function(idx) {
+        editStates[idx] = 'rejected';
+        renderEdits();
+        updateFinalText();
+    };
+
+    // ==================== FINAL TEXT ====================
+    function updateFinalText() {
+        if (!lastResponse) return;
+
+        // Start with corrected text, then revert rejected edits
+        // Simple approach: rebuild from original, applying only accepted/pending-applied edits
+        let text = lastResponse.original_text;
+
+        // Sort edits by position (reverse) to apply from end to start
+        const indexedEdits = lastResponse.edits.map((e, i) => ({...e, idx: i}));
+        indexedEdits.sort((a, b) => b.start_char - a.start_char);
+
+        for (const edit of indexedEdits) {
+            const state = editStates[edit.idx];
+            const shouldApply = state === 'accepted' || (state === 'pending' && !edit.is_suggestion);
+
+            if (shouldApply) {
+                text = text.substring(0, edit.start_char) + edit.corrected + text.substring(edit.end_char);
+            }
+        }
+
+        finalText.textContent = text;
+    }
+
+    // ==================== CATEGORY CHART ====================
+    const CATEGORY_COLORS = {
+        grammar: '#3b82f6',
+        spelling: '#ec4899',
+        punctuation: '#a855f7',
+        style: '#6366f1',
+        redundancy: '#f59e0b',
+        word_choice: '#14b8a6',
+    };
+
+    function renderChart() {
+        if (!lastResponse.edits.length) {
+            categoryChart.innerHTML = '<p style="color: var(--text-muted);">No edits to chart.</p>';
+            return;
+        }
+
+        const counts = {};
+        for (const e of lastResponse.edits) {
+            counts[e.category] = (counts[e.category] || 0) + 1;
+        }
+
+        const maxCount = Math.max(...Object.values(counts));
+        let html = '';
+        for (const [cat, count] of Object.entries(counts).sort((a, b) => b[1] - a[1])) {
+            const width = Math.max(30, (count / maxCount) * 300);
+            const color = CATEGORY_COLORS[cat] || '#64748b';
+            html += `
+                <div class="chart-bar-group">
+                    <div class="chart-label">${cat}</div>
+                    <div class="chart-bar" style="width: ${width}px; background: ${color};">${count}</div>
+                </div>
+            `;
+        }
+        categoryChart.innerHTML = html;
+    }
+
+    // ==================== COPY ====================
+    copyBtn.addEventListener('click', () => {
+        const text = finalText.textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            copyBtn.textContent = '✅ Copied!';
+            setTimeout(() => { copyBtn.textContent = '📋 Copy Final Text'; }, 2000);
+        }).catch(() => {
+            // Fallback
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            copyBtn.textContent = '✅ Copied!';
+            setTimeout(() => { copyBtn.textContent = '📋 Copy Final Text'; }, 2000);
+        });
+    });
+
+    // ==================== RESULTS TAB ====================
+    async function loadResults() {
+        const rl = document.getElementById('results-loading');
+        const rc = document.getElementById('results-content');
+        const re = document.getElementById('results-error');
+        const ac = document.getElementById('analysis-card');
+        const fc = document.getElementById('failures-card');
+        const lc = document.getElementById('limitations-card');
+
+        rl.classList.add('visible');
+        rc.style.display = 'none';
+        re.style.display = 'none';
+        ac.style.display = 'none';
+        fc.style.display = 'none';
+        lc.style.display = 'none';
+
+        try {
+            // Load main results
+            const resp = await fetch('/results.json');
+            if (!resp.ok) throw new Error('Results not found');
+            const data = await resp.json();
+
+            // Try to load t060 results too
+            let data060 = null;
+            try {
+                const resp060 = await fetch('/results_t060.json');
+                if (resp060.ok) data060 = await resp060.json();
+            } catch (e) { /* optional */ }
+
+            renderResultsTable(data, data060);
+            rl.classList.remove('visible');
+            rc.style.display = 'block';
+            ac.style.display = 'block';
+            fc.style.display = 'block';
+            lc.style.display = 'block';
+
+            renderAnalysis(data, data060);
+            renderFailures(data);
+            renderLimitations();
+        } catch (e) {
+            rl.classList.remove('visible');
+            re.style.display = 'block';
+        }
+    }
+
+    function renderResultsTable(data, data060) {
+        const meta = document.getElementById('results-meta');
+        meta.innerHTML = `
+            <strong>Dataset:</strong> ${data.dataset || 'JFLEG'} |
+            <strong>Samples:</strong> ${data.num_samples || 'N/A'} |
+            <strong>Date:</strong> ${data.date || 'N/A'} |
+            <strong>Model:</strong> ${data.model || 'vennify/t5-base-grammar-correction'}
+        `;
+
+        const tbody = document.getElementById('eval-tbody');
+        let rows = '';
+
+        // No-correction baseline
+        if (data.baseline) {
+            rows += makeRow('No-correction baseline', '—', data.baseline);
+        }
+
+        // Plain T5 (no threshold)
+        if (data.plain_t5) {
+            rows += makeRow('Plain T5 (no threshold)', '—', data.plain_t5);
+        }
+
+        // GrammaCore pipeline
+        if (data.grammacore) {
+            rows += makeRow('GrammaCore pipeline', data.threshold || '0.80', data.grammacore);
+        }
+
+        // Threshold 0.60 results
+        if (data060 && data060.grammacore) {
+            rows += makeRow('GrammaCore pipeline', data060.threshold || '0.60', data060.grammacore);
+        }
+
+        tbody.innerHTML = rows;
+    }
+
+    function makeRow(name, threshold, metrics) {
+        return `<tr>
+            <td style="text-align:left; font-weight:500;">${name}</td>
+            <td>${threshold}</td>
+            <td>${(metrics.precision * 100).toFixed(1)}%</td>
+            <td>${(metrics.recall * 100).toFixed(1)}%</td>
+            <td>${(metrics.f05 * 100).toFixed(1)}%</td>
+            <td>${metrics.ms_per_sentence ? metrics.ms_per_sentence.toFixed(0) : '—'}</td>
+        </tr>`;
+    }
+
+    function renderAnalysis(data, data060) {
+        const div = document.getElementById('analysis-text');
+        let html = '';
+
+        if (data.analysis) {
+            html = `<p>${data.analysis}</p>`;
+        } else {
+            // Generate analysis from numbers
+            const gc = data.grammacore;
+            const bl = data.baseline;
+            const t5 = data.plain_t5;
+
+            html = '<p>';
+            if (gc && bl) {
+                html += `The GrammaCore pipeline (threshold ${data.threshold || '0.80'}) achieves an F0.5 of <strong>${(gc.f05 * 100).toFixed(1)}%</strong>`;
+                if (bl) html += ` compared to the no-correction baseline F0.5 of <strong>${(bl.f05 * 100).toFixed(1)}%</strong>`;
+                html += '. ';
+            }
+            if (gc && t5) {
+                html += `Compared to plain T5 output (F0.5 ${(t5.f05 * 100).toFixed(1)}%), the confidence threshold `;
+                if (gc.precision > t5.precision) {
+                    html += `improves precision from ${(t5.precision * 100).toFixed(1)}% to ${(gc.precision * 100).toFixed(1)}% `;
+                }
+                if (gc.recall < t5.recall) {
+                    html += `but reduces recall from ${(t5.recall * 100).toFixed(1)}% to ${(gc.recall * 100).toFixed(1)}%`;
+                }
+                html += '. ';
+            }
+            html += '</p>';
+
+            if (data060 && data060.grammacore && gc) {
+                const gc60 = data060.grammacore;
+                html += `<p>With a lower threshold of 0.60, recall increases to ${(gc60.recall * 100).toFixed(1)}% `;
+                html += `(from ${(gc.recall * 100).toFixed(1)}%) but precision drops to ${(gc60.precision * 100).toFixed(1)}% `;
+                html += `(from ${(gc.precision * 100).toFixed(1)}%). This demonstrates the precision–recall trade-off: `;
+                html += `a higher threshold filters out uncertain corrections, boosting precision at the cost of missing some real errors.</p>`;
+            }
+
+            html += '<p><strong>Why F0.5?</strong> Grammar correction systems weight precision 2× more than recall ';
+            html += 'because a false correction (changing correct text) is worse than missing an error. ';
+            html += 'F0.5 = (1 + 0.25) × (P × R) / (0.25 × P + R) captures this trade-off.</p>';
+        }
+
+        div.innerHTML = html;
+    }
+
+    function renderFailures(data) {
+        const div = document.getElementById('failures-list');
+        const failures = data.failure_cases || [];
+
+        if (failures.length === 0) {
+            div.innerHTML = '<p style="color: var(--text-muted);">No failure cases recorded.</p>';
+            return;
+        }
+
+        div.innerHTML = failures.map(fc => `
+            <div class="failure-case">
+                <div class="fc-label">${escapeHtml(fc.type || 'Error')}</div>
+                <div class="fc-input"><strong>Input:</strong> ${escapeHtml(fc.input)}</div>
+                <div class="fc-output"><strong>Model output:</strong> ${escapeHtml(fc.output)}</div>
+                <div class="fc-output"><strong>Expected:</strong> ${escapeHtml(fc.expected)}</div>
+                ${fc.note ? `<div class="fc-output" style="color: #9a3412;"><strong>Note:</strong> ${escapeHtml(fc.note)}</div>` : ''}
+            </div>
+        `).join('');
+    }
+
+    function renderLimitations() {
+        const ul = document.getElementById('limitations-list');
+        const limitations = [
+            "Small model (T5-base, 220M parameters) — limited ability to handle complex or ambiguous corrections compared to larger models.",
+            "CPU-only inference — latency is significant (typically 500–3000ms per sentence), making real-time use impractical for long documents.",
+            "JFLEG has multiple valid references per sentence — the ERRANT-based evaluation may undercount valid corrections that differ from the references.",
+            "Edit categorisation is heuristic-based (not learned) — ERRANT-style category guesses can be wrong, especially for ambiguous cases.",
+            "spaCy vocabulary check is approximate — some valid but rare words may be flagged as misspellings, and some misspellings may be in the vocabulary.",
+            "The model may produce incorrect corrections (e.g., 'you telling' → 'you tell' instead of 'you are telling') — T5-base has limited understanding of all grammatical contexts."
+        ];
+        ul.innerHTML = limitations.map(l => `<li>${l}</li>`).join('');
+    }
+
+    // ==================== UTILITIES ====================
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+})();
+</script>
+
+</body>
+</html>
