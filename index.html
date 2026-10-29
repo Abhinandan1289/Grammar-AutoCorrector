@@ -47,10 +47,26 @@
             text-align: center;
             font-size: 0.9rem;
             font-weight: 500;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
         }
         .status-loading { background: #fef3c7; color: #92400e; }
         .status-ready { background: #d1fae5; color: #065f46; }
         .status-error { background: #fee2e2; color: #991b1b; }
+        .api-btn {
+            background: rgba(0,0,0,0.08);
+            border: 1px solid rgba(0,0,0,0.15);
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            color: inherit;
+            font-weight: 600;
+        }
+        .api-btn:hover { background: rgba(0,0,0,0.15); }
 
         /* Tabs */
         .tabs {
@@ -419,7 +435,8 @@
 </header>
 
 <div id="status-bar" class="status-loading">
-    ⏳ Model loading… Please wait.
+    <span id="status-text">⏳ Model loading… Please wait.</span>
+    <button class="api-btn" id="set-api-btn" title="Set your Cloudflare Tunnel URL from Google Colab">🔗 Set Colab URL</button>
 </div>
 
 <div class="container">
@@ -660,6 +677,29 @@
 (function() {
     'use strict';
 
+    // ==================== BACKEND URL CONFIGURATION ====================
+    // Default Colab Cloudflare Tunnel URL (or saved URL from browser localStorage)
+    const DEFAULT_COLAB_URL = 'https://measurement-june-mean-apartments.trycloudflare.com';
+    const isGitHubPages = window.location.hostname.includes('github.io');
+    let BACKEND_URL = localStorage.getItem('grammacore_api_url') || (isGitHubPages ? DEFAULT_COLAB_URL : '');
+
+    // Clean trailing slash
+    BACKEND_URL = BACKEND_URL.replace(/\/+$/, '');
+
+    // Allow changing the Colab Tunnel URL anytime right from the status bar button
+    document.getElementById('set-api-btn').addEventListener('click', () => {
+        const current = BACKEND_URL || DEFAULT_COLAB_URL;
+        const input = prompt('Paste your current Google Colab .trycloudflare.com URL:', current);
+        if (input !== null) {
+            BACKEND_URL = input.trim().replace(/\/+$/, '');
+            localStorage.setItem('grammacore_api_url', BACKEND_URL);
+            modelReady = false;
+            statusBar.className = 'status-loading';
+            statusText.textContent = '⏳ Connecting to new Colab URL…';
+            checkHealth();
+        }
+    });
+
     // ==================== STATE ====================
     let modelReady = false;
     let lastResponse = null;
@@ -667,6 +707,7 @@
 
     // ==================== DOM REFS ====================
     const statusBar = document.getElementById('status-bar');
+    const statusText = document.getElementById('status-text');
     const inputText = document.getElementById('input-text');
     const charCount = document.getElementById('char-count');
     const threshold = document.getElementById('threshold');
@@ -705,13 +746,13 @@
     // ==================== HEALTH POLLING ====================
     async function checkHealth() {
         try {
-            const resp = await fetch('/health');
+            const resp = await fetch(`${BACKEND_URL}/health`);
             if (!resp.ok) throw new Error('Health check failed');
             const data = await resp.json();
             if (data.model_loaded) {
                 modelReady = true;
                 statusBar.className = 'status-ready';
-                statusBar.textContent = '✅ Model loaded and ready!';
+                statusText.textContent = '✅ Model loaded and ready!';
                 correctBtn.disabled = false;
                 return;
             }
@@ -757,7 +798,7 @@
         correctBtn.disabled = true;
 
         try {
-            const resp = await fetch('/api/v1/analyze', {
+            const resp = await fetch(`${BACKEND_URL}/api/v1/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -776,7 +817,7 @@
             editStates = lastResponse.edits.map(() => 'pending');  // pending, accepted, rejected
             renderResults();
         } catch (e) {
-            showError(e.message || 'Network error. Is the server running?');
+            showError(e.message || 'Network error. Is the Colab server running?');
         } finally {
             loading.classList.remove('visible');
             correctBtn.disabled = !modelReady;
@@ -850,9 +891,7 @@
     }
 
     function diffWords(a, b) {
-        // Simple word-level diff using LCS
         const result = [];
-        let ai = 0, bi = 0;
         const aFiltered = a.filter(w => w.trim());
         const bFiltered = b.filter(w => w.trim());
 
@@ -867,18 +906,13 @@
             } else {
                 result.push(['replace', aSlice.join(' '), bSlice.join(' ')]);
             }
-            // Add space between ops
             result.push(['equal', ' ', ' ']);
         }
         return result;
     }
 
     function simpleDiff(a, b) {
-        // Use a simple SequenceMatcher-like approach
-        const ops = [];
         const m = a.length, n = b.length;
-
-        // Build LCS table
         const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
         for (let i = 1; i <= m; i++) {
             for (let j = 1; j <= n; j++) {
@@ -887,7 +921,6 @@
             }
         }
 
-        // Backtrack
         let i = m, j = n;
         const result = [];
         while (i > 0 || j > 0) {
@@ -903,7 +936,6 @@
             }
         }
 
-        // Merge consecutive same-type ops
         const merged = [];
         for (const [op, aW, bW] of result) {
             if (merged.length > 0 && merged[merged.length-1][0] === op) {
@@ -914,7 +946,6 @@
             }
         }
 
-        // Convert adjacent delete+insert to replace
         const final = [];
         for (let k = 0; k < merged.length; k++) {
             if (merged[k][0] === 'delete' && k+1 < merged.length && merged[k+1][0] === 'insert') {
@@ -976,7 +1007,6 @@
         }).join('');
     }
 
-    // Accept/Reject handlers (exposed globally for onclick)
     window._acceptEdit = function(idx) {
         editStates[idx] = 'accepted';
         renderEdits();
@@ -992,11 +1022,7 @@
     function updateFinalText() {
         if (!lastResponse) return;
 
-        // Start with corrected text, then revert rejected edits
-        // Simple approach: rebuild from original, applying only accepted/pending-applied edits
         let text = lastResponse.original_text;
-
-        // Sort edits by position (reverse) to apply from end to start
         const indexedEdits = lastResponse.edits.map((e, i) => ({...e, idx: i}));
         indexedEdits.sort((a, b) => b.start_char - a.start_char);
 
@@ -1055,7 +1081,6 @@
             copyBtn.textContent = '✅ Copied!';
             setTimeout(() => { copyBtn.textContent = '📋 Copy Final Text'; }, 2000);
         }).catch(() => {
-            // Fallback
             const ta = document.createElement('textarea');
             ta.value = text;
             document.body.appendChild(ta);
@@ -1084,15 +1109,21 @@
         lc.style.display = 'none';
 
         try {
-            // Load main results
-            const resp = await fetch('/results.json');
+            // Use relative path './results.json' so it works directly on GitHub Pages!
+            let resp = await fetch('./results.json');
+            if (!resp.ok && BACKEND_URL) {
+                resp = await fetch(`${BACKEND_URL}/results.json`);
+            }
             if (!resp.ok) throw new Error('Results not found');
             const data = await resp.json();
 
             // Try to load t060 results too
             let data060 = null;
             try {
-                const resp060 = await fetch('/results_t060.json');
+                let resp060 = await fetch('./results_t060.json');
+                if (!resp060.ok && BACKEND_URL) {
+                    resp060 = await fetch(`${BACKEND_URL}/results_t060.json`);
+                }
                 if (resp060.ok) data060 = await resp060.json();
             } catch (e) { /* optional */ }
 
@@ -1124,22 +1155,15 @@
         const tbody = document.getElementById('eval-tbody');
         let rows = '';
 
-        // No-correction baseline
         if (data.baseline) {
             rows += makeRow('No-correction baseline', '—', data.baseline);
         }
-
-        // Plain T5 (no threshold)
         if (data.plain_t5) {
             rows += makeRow('Plain T5 (no threshold)', '—', data.plain_t5);
         }
-
-        // GrammaCore pipeline
         if (data.grammacore) {
             rows += makeRow('GrammaCore pipeline', data.threshold || '0.80', data.grammacore);
         }
-
-        // Threshold 0.60 results
         if (data060 && data060.grammacore) {
             rows += makeRow('GrammaCore pipeline', data060.threshold || '0.60', data060.grammacore);
         }
@@ -1165,7 +1189,6 @@
         if (data.analysis) {
             html = `<p>${data.analysis}</p>`;
         } else {
-            // Generate analysis from numbers
             const gc = data.grammacore;
             const bl = data.baseline;
             const t5 = data.plain_t5;
